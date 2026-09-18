@@ -81,6 +81,8 @@ jobs:
     needs: build-and-push
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # Секреты RENDER_* заведены как environment secrets — без этой строки job их не получит.
+    environment: RENDER
     env:
       RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
