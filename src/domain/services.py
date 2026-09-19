@@ -1,5 +1,3 @@
-"""Сервисный слой: бизнес-правила поверх абстрактного хранилища."""
-
 from typing import Any
 
 from src.core.exceptions import PersonNotFoundError
@@ -8,11 +6,6 @@ from src.domain.repositories import PersonRepository
 
 
 class PersonService:
-    """Операции над записями о людях.
-
-    Зависит от абстракции PersonRepository, а не от конкретной БД, поэтому
-    тестируется без Postgres и переживает смену хранилища без правок.
-    """
 
     def __init__(self, repository: PersonRepository) -> None:
         self._repository = repository

@@ -1,5 +1,3 @@
-"""Отображение доменных сущностей на таблицы БД."""
-
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -22,7 +20,7 @@ class PersonORM(Base):
     work: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     def to_domain(self) -> Person:
-        """Сборка доменной сущности — БД наружу не протекает."""
+        """Сборка доменной сущности"""
         return Person(
             id=self.id,
             name=self.name,

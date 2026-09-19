@@ -1,4 +1,3 @@
-"""Порт хранилища (DIP): сервисный слой зависит только от этой абстракции."""
 
 from abc import ABC, abstractmethod
 from typing import Any
@@ -7,13 +6,7 @@ from src.domain.entities import Person
 
 
 class PersonRepository(ABC):
-    """Контракт хранилища записей о людях.
-
-    Реализации: SQLAlchemyPersonRepository (Postgres) и InMemoryPersonRepository
-    (тесты). Методы возвращают None / False вместо исключений — трактовка
-    «не найдено» как ошибки принадлежит сервисному слою, а не хранилищу.
-    """
-
+    
     @abstractmethod
     async def list_all(self) -> list[Person]:
         """Вернуть все записи."""

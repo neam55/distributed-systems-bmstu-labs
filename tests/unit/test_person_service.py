@@ -32,7 +32,6 @@ async def test_partial_update_keeps_untouched_fields(service: PersonService) -> 
 
     assert updated.name == "Petr"
     assert updated.address == "Tver"
-    # Поля, которых не было в запросе, обязаны сохранить прежние значения.
     assert updated.age == 31
     assert updated.work == "BMSTU"
 

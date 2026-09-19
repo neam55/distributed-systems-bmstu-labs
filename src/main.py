@@ -1,5 +1,3 @@
-"""Точка сборки приложения."""
-
 from fastapi import FastAPI
 
 from src.api import health
@@ -8,7 +6,6 @@ from src.api.v1 import persons
 
 
 def create_app() -> FastAPI:
-    """Фабрика приложения: регистрирует роутеры и обработчики исключений."""
     app = FastAPI(
         title="Person Service",
         description="Лабораторная работа №1: CRUD над сущностью Person.",

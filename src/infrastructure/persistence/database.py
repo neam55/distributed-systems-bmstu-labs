@@ -1,5 +1,3 @@
-"""Асинхронное подключение к БД и провайдер сессий для Depends."""
-
 from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
@@ -20,6 +18,5 @@ session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI-зависимость: сессия на время обработки запроса."""
     async with session_factory() as session:
         yield session

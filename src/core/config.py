@@ -1,5 +1,3 @@
-"""Конфигурация приложения из переменных окружения."""
-
 from functools import lru_cache
 
 from pydantic import field_validator
@@ -7,12 +5,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Настройки сервиса.
-
-    database_url нормализуется под асинхронный драйвер: хостеры (Render, Heroku)
-    отдают DATABASE_URL в виде postgres://… или postgresql://…, а SQLAlchemy
-    с asyncpg ожидает postgresql+asyncpg://…
-    """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -32,7 +24,6 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        """URL для инструментов без поддержки async (при необходимости)."""
         return self.database_url.replace("+asyncpg", "").replace("+aiosqlite", "")
 
 

@@ -1,5 +1,3 @@
-"""Адаптер порта PersonRepository поверх SQLAlchemy."""
-
 from typing import Any
 
 from sqlalchemy import select
@@ -11,8 +9,7 @@ from src.infrastructure.persistence.models import PersonORM
 
 
 class SQLAlchemyPersonRepository(PersonRepository):
-    """Хранилище записей о людях в Postgres."""
-
+    
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
