@@ -1,5 +1,8 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# libs и services не являются пакетами: их содержимое кладётся на sys.path,
+# поэтому импорты в коде и в контейнере совпадают (common.*, gateway.*, ...).
+pythonpath = ["libs", "services"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-q"
@@ -7,6 +10,7 @@ addopts = "-q"
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+src = ["libs", "services", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
@@ -15,6 +19,8 @@ select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+mypy_path = "libs:services"
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"

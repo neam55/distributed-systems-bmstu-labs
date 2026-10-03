@@ -1,56 +1,109 @@
 services:
-  db:
-    image: postgres:13
-    container_name: persons-db
+  postgres:
+    image: library/postgres:13
+    container_name: postgres
+    restart: on-failure
     environment:
-      POSTGRES_DB: persons
-      POSTGRES_USER: program
-      POSTGRES_PASSWORD: test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Скрипты верхнего уровня создают пользователя, базы и схемы с тестовыми данными.
+      - ./postgres/:/docker-entrypoint-initdb.d/
     ports:
       - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U program -d persons"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: persons-pgadmin
+  loyalty-service:
+    build:
+      context: .
+      dockerfile: services/loyalty/Dockerfile
+    container_name: loyalty-service
+    restart: on-failure
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      DATABASE_URL: postgresql+asyncpg://program:test@postgres:5432/loyalties
+      PORT: 8050
     ports:
-      - "5050:80"
-    volumes:
-      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
-      - pgadmin-data:/var/lib/pgadmin
+      - "8050:8050"
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8050/manage/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  app:
-    build: .
-    container_name: persons-app
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment/Dockerfile
+    container_name: payment-service
+    restart: on-failure
     environment:
-      DATABASE_URL: postgresql+asyncpg://program:test@db:5432/persons
+      DATABASE_URL: postgresql+asyncpg://program:test@postgres:5432/payments
+      PORT: 8060
+    ports:
+      - "8060:8060"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8060/manage/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  reservation-service:
+    build:
+      context: .
+      dockerfile: services/reservation/Dockerfile
+    container_name: reservation-service
+    restart: on-failure
+    environment:
+      DATABASE_URL: postgresql+asyncpg://program:test@postgres:5432/reservations
+      PORT: 8070
+    ports:
+      - "8070:8070"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8070/manage/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    container_name: gateway
+    restart: on-failure
+    environment:
+      RESERVATION_SERVICE_URL: http://reservation-service:8070
+      PAYMENT_SERVICE_URL: http://payment-service:8060
+      LOYALTY_SERVICE_URL: http://loyalty-service:8050
       PORT: 8080
     ports:
       - "8080:8080"
     depends_on:
-      db:
+      loyalty-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      reservation-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/manage/health')\""]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 20
 
 volumes:
-  postgres-data:
-  pgadmin-data:
+  db-data:

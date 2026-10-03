@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+# Reservation Service. Контекст сборки — корень репозитория: образу нужны и общая библиотека, и сам сервис.
+
+FROM python:3.12-slim AS builder
+
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+
+FROM python:3.12-slim AS runtime
+
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PORT=8070
+
+COPY --from=builder /opt/venv /opt/venv
+
+WORKDIR /app
+COPY libs/common ./common
+COPY services/reservation ./reservation
+
+RUN useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8070
+
+CMD ["sh", "-c", "exec uvicorn reservation.main:app --host 0.0.0.0 --port ${PORT}"]
