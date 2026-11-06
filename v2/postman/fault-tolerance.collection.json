@@ -26,8 +26,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(200);",
-                  "pm.environment.set(\"faultReservationUid\", pm.response.json().reservationUid);"
+                  "pm.test(\"Create isolated booking\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.environment.set(\"faultReservationUid\", pm.response.json().reservationUid);",
+                  "});"
                 ]
               }
             }
@@ -64,9 +66,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(200);",
-                  "pm.expect(pm.response.json()).to.be.an(\"array\").and.not.empty;",
-                  "pm.response.json().forEach(r => pm.expect(r.payment).to.deep.equal({}));"
+                  "pm.test(\"List keeps reservations\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an(\"array\").and.not.empty;",
+                  "  pm.response.json().forEach(r => pm.expect(r.payment).to.deep.equal({}));",
+                  "});"
                 ]
               }
             }
@@ -94,8 +98,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(200);",
-                  "pm.expect(pm.response.json().payment).to.deep.equal({});"
+                  "pm.test(\"Single keeps reservation\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().payment).to.deep.equal({});",
+                  "});"
                 ]
               }
             }
@@ -123,9 +129,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(200);",
-                  "pm.expect(pm.response.json().loyalty.status).to.be.a(\"string\");",
-                  "pm.response.json().reservations.forEach(r => pm.expect(r.payment).to.deep.equal({}));"
+                  "pm.test(\"Profile keeps loyalty\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().loyalty.status).to.be.a(\"string\");",
+                  "  pm.response.json().reservations.forEach(r => pm.expect(r.payment).to.deep.equal({}));",
+                  "});"
                 ]
               }
             }
@@ -153,8 +161,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(503);",
-                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                  "pm.test(\"Cancel fails before reservation mutation\", () => {",
+                  "  pm.response.to.have.status(503);",
+                  "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+                  "});"
                 ]
               }
             }
@@ -182,8 +192,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(200);",
-                  "pm.expect(pm.response.json().status).to.equal(\"PAID\");"
+                  "pm.test(\"Reservation remains paid\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().status).to.equal(\"PAID\");",
+                  "});"
                 ]
               }
             }
@@ -216,8 +228,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(503);",
-                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                  "pm.test(\"Critical dependency hotels\", () => {",
+                  "  pm.response.to.have.status(503);",
+                  "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+                  "});"
                 ]
               }
             }
@@ -245,8 +259,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(503);",
-                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                  "pm.test(\"Critical dependency reservations\", () => {",
+                  "  pm.response.to.have.status(503);",
+                  "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+                  "});"
                 ]
               }
             }
@@ -274,8 +290,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(503);",
-                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                  "pm.test(\"Critical dependency reservations/{{faultReservationUid}}\", () => {",
+                  "  pm.response.to.have.status(503);",
+                  "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+                  "});"
                 ]
               }
             }
@@ -303,8 +321,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(503);",
-                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                  "pm.test(\"Critical dependency me\", () => {",
+                  "  pm.response.to.have.status(503);",
+                  "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+                  "});"
                 ]
               }
             }
@@ -337,8 +357,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(200);",
-                  "pm.expect(pm.response.json().payment.status).to.equal(\"PAID\");"
+                  "pm.test(\"Full data restored\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().payment.status).to.equal(\"PAID\");",
+                  "});"
                 ]
               }
             }
@@ -366,7 +388,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.response.to.have.status(200);"
+                  "pm.test(\"Hotels restored\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
                 ]
               }
             }

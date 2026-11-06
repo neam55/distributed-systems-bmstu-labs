@@ -12,7 +12,7 @@ cleanup() {
 }
 trap cleanup EXIT
 run_folder() {
-  newman run --delay-request 100 --folder "$1" \
+  newman run --delay-request 100 --folder "$1" --env-var "baseUrl=${BASE_URL:-http://localhost:8080}" \
     --environment "$environment" --export-environment "$environment" \
     "$variant/postman/collection.json"
 }
