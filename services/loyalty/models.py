@@ -1,6 +1,9 @@
 """ORM-модель таблицы loyalty."""
 
-from sqlalchemy import Integer, String
+from uuid import UUID
+
+from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from loyalty.entities import Loyalty, LoyaltyStatus
@@ -27,3 +30,14 @@ class LoyaltyORM(Base):
             status=LoyaltyStatus(self.status),
             discount=self.discount,
         )
+
+
+class LoyaltyOperationORM(Base):
+    """Ключи уже применённых изменений счётчика, в одной транзакции с loyalty."""
+
+    __tablename__ = "loyalty_operation"
+
+    username: Mapped[str] = mapped_column(
+        String(80), ForeignKey("loyalty.username"), primary_key=True
+    )
+    operation_uid: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)

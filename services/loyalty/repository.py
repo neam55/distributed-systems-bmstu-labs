@@ -1,12 +1,13 @@
 """Хранилище записей о лояльности."""
 
 from abc import ABC, abstractmethod
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from loyalty.entities import Loyalty, LoyaltyStatus
-from loyalty.models import LoyaltyORM
+from loyalty.entities import Loyalty, tier_for
+from loyalty.models import LoyaltyOperationORM, LoyaltyORM
 
 
 class LoyaltyRepository(ABC):
@@ -19,10 +20,10 @@ class LoyaltyRepository(ABC):
         """Создать запись и вернуть её с присвоенным id."""
 
     @abstractmethod
-    async def save_tier(
-        self, username: str, reservation_count: int, status: LoyaltyStatus, discount: int
+    async def change_count(
+        self, username: str, delta: int, operation_uid: UUID | None = None
     ) -> Loyalty | None:
-        """Записать новый счётчик и уровень. None, если записи пользователя нет."""
+        """Атомарно изменить счётчик; operation_uid защищает от повторного применения."""
 
 
 class SQLAlchemyLoyaltyRepository(LoyaltyRepository):
@@ -49,12 +50,26 @@ class SQLAlchemyLoyaltyRepository(LoyaltyRepository):
         await self._session.refresh(row)
         return row.to_domain()
 
-    async def save_tier(
-        self, username: str, reservation_count: int, status: LoyaltyStatus, discount: int
+    async def change_count(
+        self, username: str, delta: int, operation_uid: UUID | None = None
     ) -> Loyalty | None:
-        row = await self._row(username)
+        result = await self._session.execute(
+            select(LoyaltyORM)
+            .where(LoyaltyORM.username == username)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        row = result.scalar_one_or_none()
         if row is None:
             return None
+        if operation_uid is not None:
+            operation = await self._session.get(LoyaltyOperationORM, (username, operation_uid))
+            if operation is not None:
+                await self._session.commit()
+                return row.to_domain()
+            self._session.add(LoyaltyOperationORM(username=username, operation_uid=operation_uid))
+        reservation_count = max(0, row.reservation_count + delta)
+        status, discount = tier_for(reservation_count)
         row.reservation_count = reservation_count
         row.status = status.value
         row.discount = discount

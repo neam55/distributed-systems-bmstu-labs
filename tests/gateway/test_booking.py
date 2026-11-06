@@ -1,11 +1,11 @@
 """Сценарии оркестрации Gateway."""
 
 from datetime import date
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
-from common.errors import NotFoundError, ValidationError
+from common.errors import NotFoundError, UpstreamError, ValidationError
 from gateway.schemas import CreateReservationRequest
 from gateway.service import BookingService, apply_discount
 from tests.gateway.fakes import (
@@ -111,7 +111,11 @@ async def test_cancel_cancels_reservation_payment_and_counter(
 
     await service.cancel(booked.reservation_uid, TEST_USER)
 
-    assert calls == ["reservation.cancel_reservation", "payment.cancel", "loyalty.change_count(-1)"]
+    assert calls == [
+        "reservation.cancel_reservation",
+        "payment.cancel",
+        "loyalty.change_count(-1)",
+    ]
     assert reservations.reservations[booked.reservation_uid].status == "CANCELED"
     assert [payment.status for payment in payments.payments.values()] == ["CANCELED"]
     assert loyalty.reservation_count == 25
@@ -127,6 +131,53 @@ async def test_cancel_of_another_user_raises_not_found(service: BookingService) 
 async def test_cancel_unknown_reservation_raises_not_found(service: BookingService) -> None:
     with pytest.raises(NotFoundError):
         await service.cancel(uuid4(), TEST_USER)
+
+
+async def test_cancel_retry_completes_after_payment_failure(
+    service: BookingService,
+    payments: FakePaymentServiceClient,
+    loyalty: FakeLoyaltyServiceClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    booked = await service.book(TEST_USER, REQUEST)
+    original = payments.cancel
+
+    async def unavailable(payment_uid: object) -> None:
+        raise UpstreamError("Payment", "temporarily unavailable")
+
+    monkeypatch.setattr(payments, "cancel", unavailable)
+    with pytest.raises(UpstreamError):
+        await service.cancel(booked.reservation_uid, TEST_USER)
+    monkeypatch.setattr(payments, "cancel", original)
+
+    await service.cancel(booked.reservation_uid, TEST_USER)
+
+    assert loyalty.reservation_count == 25
+    assert [payment.status for payment in payments.payments.values()] == ["CANCELED"]
+
+
+async def test_cancel_retry_after_lost_loyalty_response_does_not_decrement_twice(
+    service: BookingService,
+    loyalty: FakeLoyaltyServiceClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    booked = await service.book(TEST_USER, REQUEST)
+    original = loyalty.change_count
+
+    async def lost_response(
+        username: str, delta: int, operation_uid: UUID | None = None
+    ) -> None:
+        await original(username, delta, operation_uid)
+        raise UpstreamError("Loyalty", "response lost")
+
+    monkeypatch.setattr(loyalty, "change_count", lost_response)
+    with pytest.raises(UpstreamError):
+        await service.cancel(booked.reservation_uid, TEST_USER)
+    monkeypatch.setattr(loyalty, "change_count", original)
+
+    await service.cancel(booked.reservation_uid, TEST_USER)
+
+    assert loyalty.reservation_count == 25
 
 
 async def test_reservation_list_joins_payment_data(service: BookingService) -> None:

@@ -102,7 +102,9 @@ class LoyaltyServiceClient(ABC):
     async def get(self, username: str) -> LoyaltyData: ...
 
     @abstractmethod
-    async def change_count(self, username: str, delta: int) -> LoyaltyData: ...
+    async def change_count(
+        self, username: str, delta: int, operation_uid: UUID | None = None
+    ) -> LoyaltyData: ...
 
 
 class HttpReservationServiceClient(ReservationServiceClient):
@@ -192,9 +194,14 @@ class HttpLoyaltyServiceClient(LoyaltyServiceClient):
         assert response is not None
         return LoyaltyData.model_validate(response.json())
 
-    async def change_count(self, username: str, delta: int) -> LoyaltyData:
+    async def change_count(
+        self, username: str, delta: int, operation_uid: UUID | None = None
+    ) -> LoyaltyData:
+        payload: dict[str, int | str] = {"delta": delta}
+        if operation_uid is not None:
+            payload["operationUid"] = str(operation_uid)
         response = await self._client.send(
-            "PATCH", "/api/v1/loyalty", json={"delta": delta}, username=username
+            "PATCH", "/api/v1/loyalty", json=payload, username=username
         )
         assert response is not None
         return LoyaltyData.model_validate(response.json())

@@ -1,0 +1,24 @@
+{
+  "tests": [
+    {
+      "name": "Run Postman",
+      "setup": "",
+      "run": "newman run -e v2/postman/environment.json v2/postman/collection.json --delay-request 100",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 10,
+      "points": 10
+    },
+    {
+      "name": "Cancellation and pagination regressions",
+      "setup": "",
+      "run": "node scripts/check-regressions.cjs",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 2,
+      "points": 0
+    }
+  ]
+}

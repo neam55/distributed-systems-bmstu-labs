@@ -1,0 +1,78 @@
+name: GitHub Classroom Workflow
+
+on:
+  push:
+    branches: [main, 'lab*']
+  pull_request:
+    branches: [main, 'lab*']
+
+jobs:
+  test:
+    name: Lint and Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Type check (mypy)
+        run: mypy libs services
+
+      - name: Unit tests (pytest)
+        run: pytest -v
+
+  integration:
+    name: Autograding
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build images
+        timeout-minutes: 10
+        run: docker compose build
+
+      - name: Run containers
+        timeout-minutes: 5
+        run: |
+          docker compose up -d
+          # Бит выполнения может потеряться при checkout'е на Windows.
+          chmod +x ./scripts/*.sh
+          ./scripts/wait-script.sh
+        env:
+          WAIT_PORTS: 8080,8070,8060,8050
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Newman
+        run: npm install --global newman@6.2.1
+
+      - name: Run API Tests from autograding.json
+        run: node scripts/run-autograding.cjs
+
+      - name: Show container logs
+        if: failure()
+        continue-on-error: true
+        run: docker compose logs --tail 200
+
+      - name: Stop containers
+        if: always()
+        continue-on-error: true
+        run: docker compose down -v

@@ -30,7 +30,8 @@ class FakeReservationServiceClient(ReservationServiceClient):
 
     async def list_hotels(self, page: int, size: int) -> HotelPageData:
         self._calls.append("reservation.list_hotels")
-        items = list(self._hotels.values())[(page - 1) * size : (page - 1) * size + size]
+        offset = max(0, page - 1) * size
+        items = list(self._hotels.values())[offset : offset + size]
         return HotelPageData(
             page=page,
             page_size=len(items),
@@ -123,6 +124,7 @@ class FakeLoyaltyServiceClient(LoyaltyServiceClient):
     def __init__(self, calls: list[str], reservation_count: int = 25) -> None:
         self._calls = calls
         self.reservation_count = reservation_count
+        self._operations: set[tuple[str, UUID]] = set()
 
     def _tier(self) -> tuple[str, int]:
         if self.reservation_count >= 20:
@@ -136,8 +138,18 @@ class FakeLoyaltyServiceClient(LoyaltyServiceClient):
         status, discount = self._tier()
         return LoyaltyData(status=status, discount=discount, reservation_count=self.reservation_count)
 
-    async def change_count(self, username: str, delta: int) -> LoyaltyData:
+    async def change_count(
+        self, username: str, delta: int, operation_uid: UUID | None = None
+    ) -> LoyaltyData:
         self._calls.append(f"loyalty.change_count({delta:+d})")
+        if operation_uid is not None:
+            key = (username, operation_uid)
+            if key in self._operations:
+                status, discount = self._tier()
+                return LoyaltyData(
+                    status=status, discount=discount, reservation_count=self.reservation_count
+                )
+            self._operations.add(key)
         self.reservation_count = max(0, self.reservation_count + delta)
         status, discount = self._tier()
         return LoyaltyData(status=status, discount=discount, reservation_count=self.reservation_count)

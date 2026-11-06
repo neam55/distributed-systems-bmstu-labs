@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from httpx import AsyncClient
 
 from .conftest import TEST_USER
@@ -34,3 +36,24 @@ async def test_health_is_up(client: AsyncClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "UP"}
+
+
+async def test_repeated_operation_changes_counter_once(client: AsyncClient) -> None:
+    payload = {"delta": -1, "operationUid": str(uuid4())}
+    for _ in range(2):
+        response = await client.patch(
+            "/api/v1/loyalty", headers={"X-User-Name": TEST_USER}, json=payload
+        )
+        assert response.status_code == 200
+        assert response.json()["reservationCount"] == 24
+
+
+async def test_different_operations_both_change_counter(client: AsyncClient) -> None:
+    for expected_count in (24, 23):
+        response = await client.patch(
+            "/api/v1/loyalty",
+            headers={"X-User-Name": TEST_USER},
+            json={"delta": -1, "operationUid": str(uuid4())},
+        )
+        assert response.status_code == 200
+        assert response.json()["reservationCount"] == expected_count

@@ -13,8 +13,8 @@ class ReservationService:
         self._repository = repository
 
     async def list_hotels(self, page: int, size: int) -> HotelPage:
-        """Страница справочника. Нумерация страниц с единицы."""
-        items = await self._repository.list_hotels(offset=(page - 1) * size, limit=size)
+        """Нумерация с единицы; допустимый по OpenAPI page=0 — первая страница."""
+        items = await self._repository.list_hotels(offset=max(0, page - 1) * size, limit=size)
         total = await self._repository.count_hotels()
         return HotelPage(page=page, total_elements=total, items=items)
 

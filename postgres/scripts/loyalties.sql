@@ -11,6 +11,13 @@ CREATE TABLE loyalty
 );
 
 -- Тестовые данные: пользователь приёмочной коллекции с золотым статусом.
+CREATE TABLE loyalty_operation
+(
+    username VARCHAR(80) NOT NULL REFERENCES loyalty (username),
+    operation_uid uuid NOT NULL,
+    PRIMARY KEY (username, operation_uid)
+);
+
 INSERT INTO loyalty (username, reservation_count, status, discount)
 VALUES ('Test Max', 25, 'GOLD', 10);
 

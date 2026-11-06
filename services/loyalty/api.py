@@ -29,5 +29,5 @@ async def change_loyalty(
     service: LoyaltyServiceDep,
     x_user_name: UserName,
 ) -> LoyaltyResponse:
-    loyalty = await service.change_count(x_user_name, payload.delta)
+    loyalty = await service.change_count(x_user_name, payload.delta, payload.operation_uid)
     return LoyaltyResponse.model_validate(loyalty)

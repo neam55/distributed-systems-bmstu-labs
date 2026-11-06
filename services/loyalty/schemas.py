@@ -1,5 +1,7 @@
 """DTO Loyalty Service."""
 
+from uuid import UUID
+
 from common.schemas import CamelModel
 from loyalty.entities import LoyaltyStatus
 
@@ -16,3 +18,4 @@ class LoyaltyChangeRequest(CamelModel):
     """Изменение счётчика бронирований: +1 при бронировании, -1 при отмене."""
 
     delta: int
+    operation_uid: UUID | None = None

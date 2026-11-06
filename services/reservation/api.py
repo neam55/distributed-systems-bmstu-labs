@@ -20,7 +20,7 @@ reservations_router = APIRouter(prefix="/api/v1/reservations", tags=["Reservatio
 HOTEL_NOT_FOUND: Responses = {404: {"model": ErrorResponse, "description": "Отель не найден"}}
 RESERVATION_NOT_FOUND: Responses = {404: {"model": ErrorResponse, "description": "Бронирование не найдено"}}
 
-Page = Annotated[int, Query(ge=1, description="Номер страницы, нумерация с единицы")]
+Page = Annotated[int, Query(ge=0, description="Номер страницы; 0 и 1 обозначают первую страницу")]
 Size = Annotated[int, Query(ge=1, le=100, description="Количество элементов на странице")]
 
 

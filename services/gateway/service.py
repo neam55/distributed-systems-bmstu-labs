@@ -111,7 +111,7 @@ class BookingService:
         if reservation is None:
             raise NotFoundError(f"Reservation with uid {reservation_uid} not found")
         await self._payments.cancel(reservation.payment_uid)
-        await self._loyalty.change_count(username, -1)
+        await self._loyalty.change_count(username, -1, operation_uid=reservation_uid)
 
     @staticmethod
     def _to_response(reservation: ReservationData, payment: PaymentData | None) -> ReservationResponse:

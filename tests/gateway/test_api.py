@@ -126,3 +126,22 @@ async def test_health_is_up(client: AsyncClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "UP"}
+
+
+async def test_page_zero_returns_first_page(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/hotels", params={"page": 0, "size": 10})
+
+    assert response.status_code == 200
+    assert response.json()["page"] == 0
+    assert response.json()["items"][0]["hotelUid"] == str(ARARAT_UID)
+
+
+async def test_repeated_cancel_preserves_loyalty_count(client: AsyncClient) -> None:
+    created = (await client.post("/api/v1/reservations", headers=USER, json=BOOKING)).json()
+    url = f"/api/v1/reservations/{created['reservationUid']}"
+
+    assert (await client.delete(url, headers=USER)).status_code == 204
+    assert (await client.delete(url, headers=USER)).status_code == 204
+    loyalty = (await client.get("/api/v1/loyalty", headers=USER)).json()
+    assert loyalty["reservationCount"] == 25
+    assert (await client.get(url, headers=USER)).json()["payment"]["status"] == "CANCELED"

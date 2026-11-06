@@ -103,3 +103,11 @@ async def test_cancel_returns_canceled_reservation(client: AsyncClient) -> None:
 
 async def test_health_is_up(client: AsyncClient) -> None:
     assert (await client.get("/manage/health")).json() == {"status": "UP"}
+
+
+async def test_page_zero_returns_first_page(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/hotels", params={"page": 0, "size": 1})
+
+    assert response.status_code == 200
+    assert response.json()["page"] == 0
+    assert response.json()["items"][0]["hotelUid"] == str(ARARAT_UID)

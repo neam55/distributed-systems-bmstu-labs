@@ -1,7 +1,7 @@
 import pytest
 
-from loyalty.entities import LoyaltyStatus
-from loyalty.service import LoyaltyService, tier_for
+from loyalty.entities import LoyaltyStatus, tier_for
+from loyalty.service import LoyaltyService
 
 from .conftest import TEST_USER
 
