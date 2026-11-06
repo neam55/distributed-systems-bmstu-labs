@@ -3,7 +3,7 @@
 from datetime import date
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from common.schemas import CamelModel
 
@@ -39,13 +39,17 @@ class PaymentInfo(CamelModel):
     price: int
 
 
+class EmptyInfo(CamelModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class ReservationResponse(CamelModel):
     reservation_uid: UUID
     hotel: HotelInfo
     start_date: date
     end_date: date
     status: str
-    payment: PaymentInfo | None = None
+    payment: PaymentInfo | EmptyInfo = Field(default_factory=EmptyInfo)
 
 
 class LoyaltyInfoResponse(CamelModel):
@@ -58,7 +62,7 @@ class UserInfoResponse(CamelModel):
     """Полная информация о пользователе: бронирования и статус лояльности."""
 
     reservations: list[ReservationResponse]
-    loyalty: LoyaltyInfoResponse
+    loyalty: LoyaltyInfoResponse | EmptyInfo
 
 
 class CreateReservationRequest(CamelModel):

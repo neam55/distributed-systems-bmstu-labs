@@ -43,9 +43,7 @@ async def test_booking_charges_nights_minus_loyalty_discount(service: BookingSer
     assert result.payment.price == EXPECTED_PRICE
 
 
-async def test_booking_calls_services_in_contract_order(
-    service: BookingService, calls: list[str]
-) -> None:
+async def test_booking_calls_services_in_contract_order(service: BookingService, calls: list[str]) -> None:
     await service.book(TEST_USER, REQUEST)
 
     assert calls == [
@@ -112,8 +110,9 @@ async def test_cancel_cancels_reservation_payment_and_counter(
     await service.cancel(booked.reservation_uid, TEST_USER)
 
     assert calls == [
-        "reservation.cancel_reservation",
+        "reservation.get_reservation",
         "payment.cancel",
+        "reservation.cancel_reservation",
         "loyalty.change_count(-1)",
     ]
     assert reservations.reservations[booked.reservation_uid].status == "CANCELED"
@@ -164,15 +163,13 @@ async def test_cancel_retry_after_lost_loyalty_response_does_not_decrement_twice
     booked = await service.book(TEST_USER, REQUEST)
     original = loyalty.change_count
 
-    async def lost_response(
-        username: str, delta: int, operation_uid: UUID | None = None
-    ) -> None:
+    async def lost_response(username: str, delta: int, operation_uid: UUID | None = None) -> None:
         await original(username, delta, operation_uid)
         raise UpstreamError("Loyalty", "response lost")
 
     monkeypatch.setattr(loyalty, "change_count", lost_response)
-    with pytest.raises(UpstreamError):
-        await service.cancel(booked.reservation_uid, TEST_USER)
+    await service.cancel(booked.reservation_uid, TEST_USER)
+    assert service.recovery.pending
     monkeypatch.setattr(loyalty, "change_count", original)
 
     await service.cancel(booked.reservation_uid, TEST_USER)

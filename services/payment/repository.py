@@ -4,11 +4,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from fastapi import HTTPException
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from payment.entities import Payment, PaymentStatus
-from payment.models import PaymentORM
+from payment.models import PaymentCancellationORM, PaymentORM
 
 
 class PaymentRepository(ABC):
@@ -28,21 +29,31 @@ class PaymentRepository(ABC):
     async def set_status(self, payment_uid: UUID, status: PaymentStatus) -> Payment | None:
         """Сменить статус платежа. None, если платежа нет."""
 
+    @abstractmethod
+    async def compensate(self, payment_uid: UUID) -> None:
+        """Persist cancellation even if creation has not arrived yet."""
+
 
 class SQLAlchemyPaymentRepository(PaymentRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def _row(self, payment_uid: UUID) -> PaymentORM | None:
-        result = await self._session.execute(
-            select(PaymentORM).where(PaymentORM.payment_uid == payment_uid)
-        )
+        result = await self._session.execute(select(PaymentORM).where(PaymentORM.payment_uid == payment_uid))
         return result.scalar_one_or_none()
 
     async def add(self, payment: Payment) -> Payment:
+        await self._lock(payment.payment_uid)
+        existing = await self._row(payment.payment_uid)
+        if existing is not None:
+            if existing.price != payment.price:
+                raise HTTPException(status_code=409, detail="Payment UID payload conflict")
+            await self._session.commit()
+            return existing.to_domain()
+        canceled = await self._session.get(PaymentCancellationORM, payment.payment_uid)
         row = PaymentORM(
             payment_uid=payment.payment_uid,
-            status=payment.status.value,
+            status=PaymentStatus.CANCELED.value if canceled else payment.status.value,
             price=payment.price,
         )
         self._session.add(row)
@@ -70,3 +81,18 @@ class SQLAlchemyPaymentRepository(PaymentRepository):
         await self._session.commit()
         await self._session.refresh(row)
         return row.to_domain()
+
+    async def _lock(self, payment_uid: UUID) -> None:
+        await self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"payment:{payment_uid}"},
+        )
+
+    async def compensate(self, payment_uid: UUID) -> None:
+        await self._lock(payment_uid)
+        if await self._session.get(PaymentCancellationORM, payment_uid) is None:
+            self._session.add(PaymentCancellationORM(payment_uid=payment_uid))
+        row = await self._row(payment_uid)
+        if row is not None:
+            row.status = PaymentStatus.CANCELED.value
+        await self._session.commit()

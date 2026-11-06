@@ -93,9 +93,7 @@ async def test_booking_unknown_hotel_returns_404(client: AsyncClient) -> None:
 async def test_cancel_returns_canceled_reservation(client: AsyncClient) -> None:
     created = await create_reservation(client)
 
-    response = await client.post(
-        f"/api/v1/reservations/{created['reservationUid']}/cancel", headers=USER
-    )
+    response = await client.post(f"/api/v1/reservations/{created['reservationUid']}/cancel", headers=USER)
 
     assert response.status_code == 200
     assert response.json()["status"] == "CANCELED"
@@ -111,3 +109,23 @@ async def test_page_zero_returns_first_page(client: AsyncClient) -> None:
     assert response.status_code == 200
     assert response.json()["page"] == 0
     assert response.json()["items"][0]["hotelUid"] == str(ARARAT_UID)
+
+
+async def test_compensated_creation_is_not_a_user_cancellable_booking(client: AsyncClient) -> None:
+    from uuid import uuid4
+
+    uid = uuid4()
+    payload = {
+        "reservationUid": str(uid),
+        "username": "Test Max",
+        "paymentUid": str(uuid4()),
+        "hotelUid": "049161bb-badd-4fa8-9d90-87c9a82b0668",
+        "startDate": "2021-10-08",
+        "endDate": "2021-10-11",
+    }
+    headers = {"X-User-Name": "Test Max"}
+    assert (await client.post("/api/v1/reservations", json=payload)).status_code == 201
+    assert (await client.post(f"/api/v1/reservations/{uid}/compensate", headers=headers)).status_code == 204
+    assert (await client.get("/api/v1/reservations", headers=headers)).json() == []
+    assert (await client.get(f"/api/v1/reservations/{uid}", headers=headers)).status_code == 404
+    assert (await client.post(f"/api/v1/reservations/{uid}/cancel", headers=headers)).status_code == 404

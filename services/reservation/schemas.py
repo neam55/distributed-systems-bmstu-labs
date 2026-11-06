@@ -51,6 +51,7 @@ class ReservationResponse(CamelModel):
 class CreateReservationRequest(CamelModel):
     """Запрос на создание брони. Сумму и скидку считает Gateway."""
 
+    reservation_uid: UUID | None = None
     username: str
     payment_uid: UUID
     hotel_uid: UUID

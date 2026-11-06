@@ -15,6 +15,8 @@ CREATE TABLE loyalty_operation
 (
     username VARCHAR(80) NOT NULL REFERENCES loyalty (username),
     operation_uid uuid NOT NULL,
+    delta INT NOT NULL DEFAULT 0,
+    state VARCHAR(20) NOT NULL DEFAULT 'APPLIED' CHECK (state IN ('APPLIED', 'REVERSED')),
     PRIMARY KEY (username, operation_uid)
 );
 

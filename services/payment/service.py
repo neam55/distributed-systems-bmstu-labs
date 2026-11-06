@@ -12,10 +12,10 @@ class PaymentService:
     def __init__(self, repository: PaymentRepository) -> None:
         self._repository = repository
 
-    async def create(self, price: int) -> Payment:
+    async def create(self, price: int, *, payment_uid: UUID | None = None) -> Payment:
         """Создать оплаченный платёж. Сумма уже посчитана Gateway со скидкой."""
         return await self._repository.add(
-            Payment(payment_uid=uuid4(), status=PaymentStatus.PAID, price=price)
+            Payment(payment_uid=payment_uid or uuid4(), status=PaymentStatus.PAID, price=price)
         )
 
     async def get(self, payment_uid: UUID) -> Payment:
@@ -32,3 +32,6 @@ class PaymentService:
         if canceled is None:
             raise NotFoundError(f"Payment with uid {payment_uid} not found")
         return canceled
+
+    async def compensate(self, payment_uid: UUID) -> None:
+        await self._repository.compensate(payment_uid)

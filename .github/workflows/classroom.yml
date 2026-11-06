@@ -34,6 +34,7 @@ jobs:
 
   integration:
     name: Autograding
+    timeout-minutes: 15
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -64,8 +65,31 @@ jobs:
       - name: Install Newman
         run: npm install --global newman@6.2.1
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install integration test dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: PostgreSQL concurrency and compensation tests
+        run: pytest tests/integration -v
+        env:
+          INTEGRATION_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/postgres
+
       - name: Run API Tests from autograding.json
         run: node scripts/run-autograding.cjs
+
+      - name: Loyalty stop/start acceptance scenario
+        run: bash scripts/test-script.sh
+        env:
+          VARIANT: v2
+          SERVICE_NAME: loyalty-service
+          PORT_NUMBER: 8050
+
+      - name: Payment and Reservation fault tolerance
+        run: bash scripts/check-fault-tolerance.sh
 
       - name: Show container logs
         if: failure()

@@ -42,5 +42,11 @@ VALUES ('049161bb-badd-4fa8-9d90-87c9a82b0668', 'Ararat Park Hyatt Moscow', 'Р�
        ('c3e5a917-8b42-4d6f-a1c7-9e2b4d6f8a05', 'Hilton Garden Inn', 'Россия', 'Казань',
         'ул. Петербургская, 1', 4, 6000);
 
+CREATE TABLE reservation_cancellation
+(
+    reservation_uid uuid PRIMARY KEY,
+    username VARCHAR(80) NOT NULL
+);
+
 GRANT ALL ON ALL TABLES IN SCHEMA public TO program;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO program;

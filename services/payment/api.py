@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
 from common.schemas import ErrorResponse, Responses
 from payment.dependencies import PaymentServiceDep
@@ -21,7 +21,7 @@ NOT_FOUND: Responses = {404: {"model": ErrorResponse, "description": "Платё
     summary="Создать запись об оплате",
 )
 async def create_payment(payload: CreatePaymentRequest, service: PaymentServiceDep) -> PaymentResponse:
-    payment = await service.create(payload.price)
+    payment = await service.create(payload.price, payment_uid=payload.payment_uid)
     return PaymentResponse.model_validate(payment)
 
 
@@ -58,3 +58,9 @@ async def get_payment(payment_uid: UUID, service: PaymentServiceDep) -> PaymentR
 )
 async def cancel_payment(payment_uid: UUID, service: PaymentServiceDep) -> PaymentResponse:
     return PaymentResponse.model_validate(await service.cancel(payment_uid))
+
+
+@router.post("/{payment_uid}/compensate", status_code=204, response_class=Response)
+async def compensate_payment(payment_uid: UUID, service: PaymentServiceDep) -> Response:
+    await service.compensate(payment_uid)
+    return Response(status_code=204)

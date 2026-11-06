@@ -3,7 +3,9 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
+from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from loyalty.entities import Loyalty, tier_for
@@ -25,6 +27,10 @@ class LoyaltyRepository(ABC):
     ) -> Loyalty | None:
         """Атомарно изменить счётчик; operation_uid защищает от повторного применения."""
 
+    @abstractmethod
+    async def reverse_increment(self, username: str, operation_uid: UUID) -> Loyalty | None:
+        """Reverse a booking increment once, or prevent its late application."""
+
 
 class SQLAlchemyLoyaltyRepository(LoyaltyRepository):
     def __init__(self, session: AsyncSession) -> None:
@@ -39,16 +45,20 @@ class SQLAlchemyLoyaltyRepository(LoyaltyRepository):
         return row.to_domain() if row is not None else None
 
     async def add(self, loyalty: Loyalty) -> Loyalty:
-        row = LoyaltyORM(
-            username=loyalty.username,
-            reservation_count=loyalty.reservation_count,
-            status=loyalty.status.value,
-            discount=loyalty.discount,
+        await self._session.execute(
+            insert(LoyaltyORM)
+            .values(
+                username=loyalty.username,
+                reservation_count=loyalty.reservation_count,
+                status=loyalty.status.value,
+                discount=loyalty.discount,
+            )
+            .on_conflict_do_nothing(index_elements=["username"])
         )
-        self._session.add(row)
         await self._session.commit()
-        await self._session.refresh(row)
-        return row.to_domain()
+        existing = await self._row(loyalty.username)
+        assert existing is not None
+        return existing.to_domain()
 
     async def change_count(
         self, username: str, delta: int, operation_uid: UUID | None = None
@@ -65,14 +75,46 @@ class SQLAlchemyLoyaltyRepository(LoyaltyRepository):
         if operation_uid is not None:
             operation = await self._session.get(LoyaltyOperationORM, (username, operation_uid))
             if operation is not None:
+                if operation.delta != delta:
+                    raise HTTPException(status_code=409, detail="Loyalty operation payload conflict")
                 await self._session.commit()
                 return row.to_domain()
-            self._session.add(LoyaltyOperationORM(username=username, operation_uid=operation_uid))
+            self._session.add(
+                LoyaltyOperationORM(
+                    username=username, operation_uid=operation_uid, delta=delta, state="APPLIED"
+                )
+            )
         reservation_count = max(0, row.reservation_count + delta)
         status, discount = tier_for(reservation_count)
         row.reservation_count = reservation_count
         row.status = status.value
         row.discount = discount
+        await self._session.commit()
+        await self._session.refresh(row)
+        return row.to_domain()
+
+    async def reverse_increment(self, username: str, operation_uid: UUID) -> Loyalty | None:
+        result = await self._session.execute(
+            select(LoyaltyORM)
+            .where(LoyaltyORM.username == username)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        operation = await self._session.get(LoyaltyOperationORM, (username, operation_uid))
+        if operation is None:
+            self._session.add(
+                LoyaltyOperationORM(username=username, operation_uid=operation_uid, delta=1, state="REVERSED")
+            )
+        elif operation.delta != 1:
+            raise HTTPException(status_code=409, detail="Only booking increments can be reversed")
+        elif operation.state == "APPLIED":
+            row.reservation_count = max(0, row.reservation_count - 1)
+            status, discount = tier_for(row.reservation_count)
+            row.status, row.discount = status.value, discount
+            operation.state = "REVERSED"
         await self._session.commit()
         await self._session.refresh(row)
         return row.to_domain()

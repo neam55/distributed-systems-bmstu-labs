@@ -28,3 +28,10 @@ class PaymentORM(Base):
             status=PaymentStatus(self.status),
             price=self.price,
         )
+
+
+class PaymentCancellationORM(Base):
+    """Cancellation intent survives a delayed create with the same UID."""
+
+    __tablename__ = "payment_cancellation"
+    payment_uid: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)

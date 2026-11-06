@@ -10,5 +10,10 @@ CREATE TABLE payment
     price       INT         NOT NULL
 );
 
+CREATE TABLE payment_cancellation
+(
+    payment_uid uuid PRIMARY KEY
+);
+
 GRANT ALL ON ALL TABLES IN SCHEMA public TO program;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO program;

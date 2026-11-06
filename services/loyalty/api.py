@@ -1,5 +1,7 @@
 """REST API Loyalty Service."""
 
+from uuid import UUID
+
 from fastapi import APIRouter
 
 from loyalty.dependencies import LoyaltyServiceDep, UserName
@@ -31,3 +33,10 @@ async def change_loyalty(
 ) -> LoyaltyResponse:
     loyalty = await service.change_count(x_user_name, payload.delta, payload.operation_uid)
     return LoyaltyResponse.model_validate(loyalty)
+
+
+@router.post("/operations/{operation_uid}/reverse", response_model=LoyaltyResponse)
+async def reverse_increment(
+    operation_uid: UUID, service: LoyaltyServiceDep, x_user_name: UserName
+) -> LoyaltyResponse:
+    return LoyaltyResponse.model_validate(await service.reverse_increment(x_user_name, operation_uid))

@@ -1,0 +1,392 @@
+{
+  "info": {
+    "name": "Lab03 additional dependency failures",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "setup",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"faultUser\")) pm.environment.set(\"faultUser\", \"lab03-fault-\" + pm.variables.replaceIn(\"{{$guid}}\"));"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Create isolated booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "pm.environment.set(\"faultReservationUid\", pm.response.json().reservationUid);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"hotelUid\":\"049161bb-badd-4fa8-9d90-87c9a82b0668\",\"startDate\":\"2027-01-01\",\"endDate\":\"2027-01-03\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "payment-down",
+      "item": [
+        {
+          "name": "List keeps reservations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "pm.expect(pm.response.json()).to.be.an(\"array\").and.not.empty;",
+                  "pm.response.json().forEach(r => pm.expect(r.payment).to.deep.equal({}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Single keeps reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "pm.expect(pm.response.json().payment).to.deep.equal({});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations/{{faultReservationUid}}"
+          }
+        },
+        {
+          "name": "Profile keeps loyalty",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "pm.expect(pm.response.json().loyalty.status).to.be.a(\"string\");",
+                  "pm.response.json().reservations.forEach(r => pm.expect(r.payment).to.deep.equal({}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me"
+          }
+        },
+        {
+          "name": "Cancel fails before reservation mutation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(503);",
+                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations/{{faultReservationUid}}"
+          }
+        },
+        {
+          "name": "Reservation remains paid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "pm.expect(pm.response.json().status).to.equal(\"PAID\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations/{{faultReservationUid}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "reservation-down",
+      "item": [
+        {
+          "name": "Critical dependency hotels",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(503);",
+                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/hotels"
+          }
+        },
+        {
+          "name": "Critical dependency reservations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(503);",
+                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Critical dependency reservations/{{faultReservationUid}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(503);",
+                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations/{{faultReservationUid}}"
+          }
+        },
+        {
+          "name": "Critical dependency me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(503);",
+                  "pm.expect(pm.response.json().message).to.be.a(\"string\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "recovered",
+      "item": [
+        {
+          "name": "Full data restored",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "pm.expect(pm.response.json().payment.status).to.equal(\"PAID\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reservations/{{faultReservationUid}}"
+          }
+        },
+        {
+          "name": "Hotels restored",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Name",
+                "value": "{{faultUser}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/hotels"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -48,9 +48,7 @@ async def get_loyalty(service: BookingServiceDep, x_user_name: UserName) -> Loya
     response_model=list[ReservationResponse],
     summary="Информация по всем бронированиям пользователя",
 )
-async def list_reservations(
-    service: BookingServiceDep, x_user_name: UserName
-) -> list[ReservationResponse]:
+async def list_reservations(service: BookingServiceDep, x_user_name: UserName) -> list[ReservationResponse]:
     return await service.list_reservations(x_user_name)
 
 

@@ -76,3 +76,11 @@ class ReservationORM(Base):
             start_date=to_date(self.start_date),
             end_date=to_date(self.end_date),
         )
+
+
+class ReservationCancellationORM(Base):
+    """A cancellation intent is scoped to the owner of the operation."""
+
+    __tablename__ = "reservation_cancellation"
+    reservation_uid: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), nullable=False)

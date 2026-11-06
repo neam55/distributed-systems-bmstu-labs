@@ -4,11 +4,13 @@ from abc import ABC, abstractmethod
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import func, select
+from fastapi import HTTPException
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from reservation.entities import Hotel, Reservation, ReservationStatus
-from reservation.models import HotelORM, ReservationORM, to_timestamp
+from reservation.models import HotelORM, ReservationCancellationORM, ReservationORM, to_timestamp
 
 
 class ReservationRepository(ABC):
@@ -51,6 +53,10 @@ class ReservationRepository(ABC):
     ) -> Reservation | None:
         """Сменить статус бронирования пользователя. None, если оно недоступно."""
 
+    @abstractmethod
+    async def compensate(self, reservation_uid: UUID, username: str) -> None:
+        """Cancel an operation, including one whose create is still in flight."""
+
 
 class SQLAlchemyReservationRepository(ReservationRepository):
     def __init__(self, session: AsyncSession) -> None:
@@ -76,7 +82,9 @@ class SQLAlchemyReservationRepository(ReservationRepository):
 
     async def list_reservations(self, username: str) -> list[Reservation]:
         result = await self._session.execute(
-            select(ReservationORM).where(ReservationORM.username == username).order_by(ReservationORM.id)
+            select(ReservationORM)
+            .where(ReservationORM.username == username, self._not_compensated())
+            .order_by(ReservationORM.id)
         )
         return [row.to_domain() for row in result.unique().scalars()]
 
@@ -85,9 +93,18 @@ class SQLAlchemyReservationRepository(ReservationRepository):
             select(ReservationORM).where(
                 ReservationORM.reservation_uid == reservation_uid,
                 ReservationORM.username == username,
+                self._not_compensated(),
             )
         )
         return result.unique().scalar_one_or_none()
+
+    @staticmethod
+    def _not_compensated() -> ColumnElement[bool]:
+        return (
+            ~select(ReservationCancellationORM.reservation_uid)
+            .where(ReservationCancellationORM.reservation_uid == ReservationORM.reservation_uid)
+            .exists()
+        )
 
     async def get_reservation(self, reservation_uid: UUID, username: str) -> Reservation | None:
         row = await self._reservation_row(reservation_uid, username)
@@ -103,6 +120,26 @@ class SQLAlchemyReservationRepository(ReservationRepository):
         start_date: date,
         end_date: date,
     ) -> Reservation | None:
+        await self._lock(reservation_uid)
+        existing_result = await self._session.execute(
+            select(ReservationORM).where(ReservationORM.reservation_uid == reservation_uid)
+        )
+        existing = existing_result.unique().scalar_one_or_none()
+        if existing is not None:
+            current = existing.to_domain()
+            if (
+                current.username,
+                current.payment_uid,
+                current.hotel.hotel_uid,
+                current.start_date,
+                current.end_date,
+            ) != (username, payment_uid, hotel_uid, start_date, end_date):
+                raise HTTPException(status_code=409, detail="Reservation UID payload conflict")
+            await self._session.commit()
+            return current
+        canceled = await self._session.get(ReservationCancellationORM, reservation_uid)
+        if canceled is not None and canceled.username != username:
+            raise HTTPException(status_code=409, detail="Reservation UID owner conflict")
         hotel = await self._hotel_row(hotel_uid)
         if hotel is None:
             return None
@@ -111,7 +148,7 @@ class SQLAlchemyReservationRepository(ReservationRepository):
             username=username,
             payment_uid=payment_uid,
             hotel_id=hotel.id,
-            status=ReservationStatus.PAID.value,
+            status=ReservationStatus.CANCELED.value if canceled else ReservationStatus.PAID.value,
             start_date=to_timestamp(start_date),
             end_date=to_timestamp(end_date),
         )
@@ -130,3 +167,26 @@ class SQLAlchemyReservationRepository(ReservationRepository):
         await self._session.commit()
         await self._session.refresh(row, ["status", "hotel"])
         return row.to_domain()
+
+    async def _lock(self, reservation_uid: UUID) -> None:
+        await self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"reservation:{reservation_uid}"},
+        )
+
+    async def compensate(self, reservation_uid: UUID, username: str) -> None:
+        await self._lock(reservation_uid)
+        result = await self._session.execute(
+            select(ReservationORM).where(ReservationORM.reservation_uid == reservation_uid)
+        )
+        row = result.unique().scalar_one_or_none()
+        intent = await self._session.get(ReservationCancellationORM, reservation_uid)
+        if (row is not None and row.username != username) or (
+            intent is not None and intent.username != username
+        ):
+            raise HTTPException(status_code=404, detail="Reservation not found")
+        if intent is None:
+            self._session.add(ReservationCancellationORM(reservation_uid=reservation_uid, username=username))
+        if row is not None:
+            row.status = ReservationStatus.CANCELED.value
+        await self._session.commit()

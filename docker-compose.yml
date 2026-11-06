@@ -89,6 +89,10 @@ services:
       RESERVATION_SERVICE_URL: http://reservation-service:8070
       PAYMENT_SERVICE_URL: http://payment-service:8060
       LOYALTY_SERVICE_URL: http://loyalty-service:8050
+      REQUEST_TIMEOUT: 2
+      CB_FAILURE_THRESHOLD: 3
+      CB_RECOVERY_TIMEOUT: 5
+      RETRY_INTERVAL: 10
       PORT: 8080
     ports:
       - "8080:8080"

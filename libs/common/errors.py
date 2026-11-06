@@ -27,10 +27,14 @@ class ValidationError(DomainError):
 class UpstreamError(DomainError):
     """Сервис, к которому обратился Gateway, недоступен или ответил ошибкой."""
 
-    def __init__(self, service: str, detail: str) -> None:
+    def __init__(
+        self, service: str, detail: str, *, status_code: int | None = None, retryable: bool = True
+    ) -> None:
         self.service = service
         self.detail = detail
-        super().__init__(f"{service} service is unavailable: {detail}")
+        self.status_code = status_code
+        self.retryable = retryable
+        super().__init__(f"{service} Service unavailable")
 
 
 async def not_found_handler(_: Request, exc: Exception) -> JSONResponse:

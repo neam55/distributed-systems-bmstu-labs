@@ -80,7 +80,11 @@ class ReservationServiceClient(ABC):
         hotel_uid: UUID,
         start_date: date,
         end_date: date,
+        reservation_uid: UUID | None = None,
     ) -> ReservationData: ...
+
+    @abstractmethod
+    async def compensate(self, reservation_uid: UUID, username: str) -> None: ...
 
     @abstractmethod
     async def cancel_reservation(self, reservation_uid: UUID, username: str) -> ReservationData | None: ...
@@ -88,16 +92,22 @@ class ReservationServiceClient(ABC):
 
 class PaymentServiceClient(ABC):
     @abstractmethod
-    async def create(self, price: int) -> PaymentData: ...
+    async def create(self, price: int, *, payment_uid: UUID | None = None) -> PaymentData: ...
 
     @abstractmethod
     async def list_by_uids(self, payment_uids: Sequence[UUID]) -> list[PaymentData]: ...
+
+    @abstractmethod
+    async def compensate(self, payment_uid: UUID) -> None: ...
 
     @abstractmethod
     async def cancel(self, payment_uid: UUID) -> PaymentData | None: ...
 
 
 class LoyaltyServiceClient(ABC):
+    @abstractmethod
+    async def reverse_increment(self, username: str, operation_uid: UUID) -> LoyaltyData: ...
+
     @abstractmethod
     async def get(self, username: str) -> LoyaltyData: ...
 
@@ -139,6 +149,7 @@ class HttpReservationServiceClient(ReservationServiceClient):
         hotel_uid: UUID,
         start_date: date,
         end_date: date,
+        reservation_uid: UUID | None = None,
     ) -> ReservationData:
         payload = {
             "username": username,
@@ -147,9 +158,16 @@ class HttpReservationServiceClient(ReservationServiceClient):
             "startDate": start_date.isoformat(),
             "endDate": end_date.isoformat(),
         }
+        if reservation_uid is not None:
+            payload["reservationUid"] = str(reservation_uid)
         response = await self._client.send("POST", "/api/v1/reservations", json=payload)
         assert response is not None
         return ReservationData.model_validate(response.json())
+
+    async def compensate(self, reservation_uid: UUID, username: str) -> None:
+        await self._client.send(
+            "POST", f"/api/v1/reservations/{reservation_uid}/compensate", username=username
+        )
 
     async def cancel_reservation(self, reservation_uid: UUID, username: str) -> ReservationData | None:
         response = await self._client.send(
@@ -165,8 +183,11 @@ class HttpPaymentServiceClient(PaymentServiceClient):
     def __init__(self, client: ServiceClient) -> None:
         self._client = client
 
-    async def create(self, price: int) -> PaymentData:
-        response = await self._client.send("POST", "/api/v1/payments", json={"price": price})
+    async def create(self, price: int, *, payment_uid: UUID | None = None) -> PaymentData:
+        payload: dict[str, int | str] = {"price": price}
+        if payment_uid is not None:
+            payload["paymentUid"] = str(payment_uid)
+        response = await self._client.send("POST", "/api/v1/payments", json=payload)
         assert response is not None
         return PaymentData.model_validate(response.json())
 
@@ -178,6 +199,9 @@ class HttpPaymentServiceClient(PaymentServiceClient):
         assert response is not None
         return [PaymentData.model_validate(item) for item in response.json()]
 
+    async def compensate(self, payment_uid: UUID) -> None:
+        await self._client.send("POST", f"/api/v1/payments/{payment_uid}/compensate")
+
     async def cancel(self, payment_uid: UUID) -> PaymentData | None:
         response = await self._client.send(
             "POST", f"/api/v1/payments/{payment_uid}/cancel", not_found_ok=True
@@ -186,6 +210,13 @@ class HttpPaymentServiceClient(PaymentServiceClient):
 
 
 class HttpLoyaltyServiceClient(LoyaltyServiceClient):
+    async def reverse_increment(self, username: str, operation_uid: UUID) -> LoyaltyData:
+        response = await self._client.send(
+            "POST", f"/api/v1/loyalty/operations/{operation_uid}/reverse", username=username
+        )
+        assert response is not None
+        return LoyaltyData.model_validate(response.json())
+
     def __init__(self, client: ServiceClient) -> None:
         self._client = client
 
@@ -194,14 +225,10 @@ class HttpLoyaltyServiceClient(LoyaltyServiceClient):
         assert response is not None
         return LoyaltyData.model_validate(response.json())
 
-    async def change_count(
-        self, username: str, delta: int, operation_uid: UUID | None = None
-    ) -> LoyaltyData:
+    async def change_count(self, username: str, delta: int, operation_uid: UUID | None = None) -> LoyaltyData:
         payload: dict[str, int | str] = {"delta": delta}
         if operation_uid is not None:
             payload["operationUid"] = str(operation_uid)
-        response = await self._client.send(
-            "PATCH", "/api/v1/loyalty", json=payload, username=username
-        )
+        response = await self._client.send("PATCH", "/api/v1/loyalty", json=payload, username=username)
         assert response is not None
         return LoyaltyData.model_validate(response.json())

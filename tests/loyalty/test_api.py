@@ -14,9 +14,7 @@ async def test_get_loyalty_returns_camel_case_contract(client: AsyncClient) -> N
 
 
 async def test_patch_loyalty_changes_counter(client: AsyncClient) -> None:
-    response = await client.patch(
-        "/api/v1/loyalty", headers={"X-User-Name": TEST_USER}, json={"delta": 1}
-    )
+    response = await client.patch("/api/v1/loyalty", headers={"X-User-Name": TEST_USER}, json={"delta": 1})
 
     assert response.status_code == 200
     assert response.json()["reservationCount"] == 26
@@ -41,9 +39,7 @@ async def test_health_is_up(client: AsyncClient) -> None:
 async def test_repeated_operation_changes_counter_once(client: AsyncClient) -> None:
     payload = {"delta": -1, "operationUid": str(uuid4())}
     for _ in range(2):
-        response = await client.patch(
-            "/api/v1/loyalty", headers={"X-User-Name": TEST_USER}, json=payload
-        )
+        response = await client.patch("/api/v1/loyalty", headers={"X-User-Name": TEST_USER}, json=payload)
         assert response.status_code == 200
         assert response.json()["reservationCount"] == 24
 

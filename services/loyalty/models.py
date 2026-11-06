@@ -37,7 +37,8 @@ class LoyaltyOperationORM(Base):
 
     __tablename__ = "loyalty_operation"
 
-    username: Mapped[str] = mapped_column(
-        String(80), ForeignKey("loyalty.username"), primary_key=True
-    )
+    username: Mapped[str] = mapped_column(String(80), ForeignKey("loyalty.username"), primary_key=True)
     operation_uid: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+
+    delta: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    state: Mapped[str] = mapped_column(String(20), nullable=False, default="APPLIED")

@@ -11,6 +11,7 @@ from payment.entities import PaymentStatus
 class CreatePaymentRequest(CamelModel):
     """Сумма к оплате; скидка уже применена вызывающей стороной."""
 
+    payment_uid: UUID | None = None
     price: int = Field(ge=0, examples=[27000])
 
 

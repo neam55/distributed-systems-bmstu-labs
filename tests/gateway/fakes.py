@@ -27,6 +27,7 @@ class FakeReservationServiceClient(ReservationServiceClient):
         self._calls = calls
         self.reservations: dict[UUID, ReservationData] = {}
         self.owners: dict[UUID, str] = {}
+        self.compensated: set[UUID] = set()
 
     async def list_hotels(self, page: int, size: int) -> HotelPageData:
         self._calls.append("reservation.list_hotels")
@@ -48,12 +49,12 @@ class FakeReservationServiceClient(ReservationServiceClient):
         return [
             reservation
             for uid, reservation in self.reservations.items()
-            if self.owners.get(uid) == username
+            if self.owners.get(uid) == username and uid not in self.compensated
         ]
 
     async def get_reservation(self, reservation_uid: UUID, username: str) -> ReservationData | None:
         self._calls.append("reservation.get_reservation")
-        if self.owners.get(reservation_uid) != username:
+        if self.owners.get(reservation_uid) != username or reservation_uid in self.compensated:
             return None
         return self.reservations.get(reservation_uid)
 
@@ -65,11 +66,12 @@ class FakeReservationServiceClient(ReservationServiceClient):
         hotel_uid: UUID,
         start_date: date,
         end_date: date,
+        reservation_uid: UUID | None = None,
     ) -> ReservationData:
         self._calls.append("reservation.create_reservation")
         hotel = self._hotels[hotel_uid]
         reservation = ReservationData(
-            reservation_uid=uuid4(),
+            reservation_uid=reservation_uid or uuid4(),
             payment_uid=payment_uid,
             hotel=HotelInfoData(
                 hotel_uid=hotel.hotel_uid,
@@ -85,9 +87,14 @@ class FakeReservationServiceClient(ReservationServiceClient):
         self.owners[reservation.reservation_uid] = username
         return reservation
 
+    async def compensate(self, reservation_uid: UUID, username: str) -> None:
+        if reservation_uid in self.reservations:
+            await self.cancel_reservation(reservation_uid, username)
+        self.compensated.add(reservation_uid)
+
     async def cancel_reservation(self, reservation_uid: UUID, username: str) -> ReservationData | None:
         self._calls.append("reservation.cancel_reservation")
-        if self.owners.get(reservation_uid) != username:
+        if self.owners.get(reservation_uid) != username or reservation_uid in self.compensated:
             return None
         current = self.reservations[reservation_uid]
         canceled = current.model_copy(update={"status": "CANCELED"})
@@ -100,15 +107,19 @@ class FakePaymentServiceClient(PaymentServiceClient):
         self._calls = calls
         self.payments: dict[UUID, PaymentData] = {}
 
-    async def create(self, price: int) -> PaymentData:
+    async def create(self, price: int, *, payment_uid: UUID | None = None) -> PaymentData:
         self._calls.append(f"payment.create({price})")
-        payment = PaymentData(payment_uid=uuid4(), status="PAID", price=price)
+        payment = PaymentData(payment_uid=payment_uid or uuid4(), status="PAID", price=price)
         self.payments[payment.payment_uid] = payment
         return payment
 
     async def list_by_uids(self, payment_uids: Sequence[UUID]) -> list[PaymentData]:
         self._calls.append("payment.list_by_uids")
         return [self.payments[uid] for uid in payment_uids if uid in self.payments]
+
+    async def compensate(self, payment_uid: UUID) -> None:
+        if payment_uid in self.payments:
+            await self.cancel(payment_uid)
 
     async def cancel(self, payment_uid: UUID) -> PaymentData | None:
         self._calls.append("payment.cancel")
@@ -125,6 +136,7 @@ class FakeLoyaltyServiceClient(LoyaltyServiceClient):
         self._calls = calls
         self.reservation_count = reservation_count
         self._operations: set[tuple[str, UUID]] = set()
+        self._reversed: set[tuple[str, UUID]] = set()
 
     def _tier(self) -> tuple[str, int]:
         if self.reservation_count >= 20:
@@ -133,22 +145,26 @@ class FakeLoyaltyServiceClient(LoyaltyServiceClient):
             return "SILVER", 7
         return "BRONZE", 5
 
+    async def reverse_increment(self, username: str, operation_uid: UUID) -> LoyaltyData:
+        key = (username, operation_uid)
+        if key not in self._reversed:
+            if key in self._operations or key in self._reversed:
+                self.reservation_count -= 1
+            self._reversed.add(key)
+        return await self.get(username)
+
     async def get(self, username: str) -> LoyaltyData:
         self._calls.append("loyalty.get")
         status, discount = self._tier()
         return LoyaltyData(status=status, discount=discount, reservation_count=self.reservation_count)
 
-    async def change_count(
-        self, username: str, delta: int, operation_uid: UUID | None = None
-    ) -> LoyaltyData:
+    async def change_count(self, username: str, delta: int, operation_uid: UUID | None = None) -> LoyaltyData:
         self._calls.append(f"loyalty.change_count({delta:+d})")
         if operation_uid is not None:
             key = (username, operation_uid)
             if key in self._operations:
                 status, discount = self._tier()
-                return LoyaltyData(
-                    status=status, discount=discount, reservation_count=self.reservation_count
-                )
+                return LoyaltyData(status=status, discount=discount, reservation_count=self.reservation_count)
             self._operations.add(key)
         self.reservation_count = max(0, self.reservation_count + delta)
         status, discount = self._tier()

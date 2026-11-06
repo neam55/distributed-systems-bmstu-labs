@@ -8,13 +8,19 @@ from fastapi import FastAPI
 from common import health
 from common.errors import register_exception_handlers
 from gateway import api
-from gateway.dependencies import close_http_clients
+from gateway.dependencies import close_http_clients, create_recovery_queue
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    yield
-    await close_http_clients()
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    recovery = create_recovery_queue(app)
+    app.state.recovery = recovery
+    recovery.start()
+    try:
+        yield
+    finally:
+        await recovery.stop()
+        await close_http_clients(app)
 
 
 def create_app() -> FastAPI:

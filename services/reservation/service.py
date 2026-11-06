@@ -46,10 +46,11 @@ class ReservationService:
         hotel_uid: UUID,
         start_date: date,
         end_date: date,
+        reservation_uid: UUID | None = None,
     ) -> Reservation:
         """Создать оплаченное бронирование. Мест в отеле считаем бесконечно много."""
         reservation = await self._repository.add_reservation(
-            reservation_uid=uuid4(),
+            reservation_uid=reservation_uid or uuid4(),
             username=username,
             payment_uid=payment_uid,
             hotel_uid=hotel_uid,
@@ -61,9 +62,10 @@ class ReservationService:
         return reservation
 
     async def cancel_reservation(self, reservation_uid: UUID, username: str) -> Reservation:
-        canceled = await self._repository.set_status(
-            reservation_uid, username, ReservationStatus.CANCELED
-        )
+        canceled = await self._repository.set_status(reservation_uid, username, ReservationStatus.CANCELED)
         if canceled is None:
             raise NotFoundError(f"Reservation with uid {reservation_uid} not found")
         return canceled
+
+    async def compensate(self, reservation_uid: UUID, username: str) -> None:
+        await self._repository.compensate(reservation_uid, username)

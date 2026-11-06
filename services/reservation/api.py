@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
 from common.schemas import ErrorResponse, Responses
 from reservation.dependencies import ReservationServiceDep, UserName
@@ -62,6 +62,7 @@ async def create_reservation(
     payload: CreateReservationRequest, service: ReservationServiceDep
 ) -> ReservationResponse:
     reservation = await service.create_reservation(
+        reservation_uid=payload.reservation_uid,
         username=payload.username,
         payment_uid=payload.payment_uid,
         hotel_uid=payload.hotel_uid,
@@ -94,6 +95,12 @@ async def get_reservation(
 async def cancel_reservation(
     reservation_uid: UUID, service: ReservationServiceDep, x_user_name: UserName
 ) -> ReservationResponse:
-    return ReservationResponse.model_validate(
-        await service.cancel_reservation(reservation_uid, x_user_name)
-    )
+    return ReservationResponse.model_validate(await service.cancel_reservation(reservation_uid, x_user_name))
+
+
+@reservations_router.post("/{reservation_uid}/compensate", status_code=204, response_class=Response)
+async def compensate_reservation(
+    reservation_uid: UUID, service: ReservationServiceDep, x_user_name: UserName
+) -> Response:
+    await service.compensate(reservation_uid, x_user_name)
+    return Response(status_code=204)
